@@ -44,19 +44,31 @@ def prepare_config(helper, app_name, misp_instance, storage_passwords):
     response = helper.service.get('misp42splunk_account')
     if response.status == 200:
         data_body = splunklib.data.load(response.body.read())
+    else:
+        raise Exception("[MC2000] Unexpected status received %s", str(response.status))
+        return None
+    
+    if int(data_body['feed']['totalResults']) == 0: # No misp instance configured
+        raise Exception("[MC202] no misp instance configured. Please onfigure an entry for %s", str(misp_instance))
+        return None
+    elif int(data_body['feed']['totalResults']) == 1: # Single misp instance configured
+        instance = data_body['feed']['entry']
+        helper.log_debug("[MC1000] instance set: {}".format(instance))
+        foundStanza = False
+        if misp_instance == str(instance['title']):
+            app_config = instance['content']
+            foundStanza = True
+    else: # Multiple misp instances configured
         misp_instances = data_body['feed']['entry']
-    if len(misp_instances) > 0:
         foundStanza = False
         for instance in list(misp_instances):
             helper.log_debug("[MC1000] instance set: {}".format(instance))
             if misp_instance == str(instance['title']):
                 app_config = instance['content']
                 foundStanza = True
-        if not foundStanza:
-            raise Exception("[MC201] no misp_instance with specified name found: %s ", str(misp_instance))
-            return None
-    else:
-        raise Exception("[MC202] no misp instance configured. Please onfigure an entry for %s", str(misp_instance))
+    
+    if not foundStanza:
+        raise Exception("[MC201] no misp_instance with specified name found: %s ", str(misp_instance))
         return None
 
     # save MISP settings stored in app_config into config_arg
